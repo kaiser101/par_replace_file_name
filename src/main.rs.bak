@@ -1,0 +1,37 @@
+use rayon::prelude::*;
+use std::fs;
+use std::path::PathBuf;
+use walkdir::WalkDir;
+
+const FILE_ROOT: &str = "E:/Administrator/Downloads/Code samples/Node/torrent_client_js/torrents/";
+const PATTERN: &str = "_Yurievij_";
+
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+    WalkDir::new(FILE_ROOT)
+        .into_iter()
+        .par_bridge()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            // 1. Extract just the file name as a string
+            let file_name = entry.file_name().to_str()?;
+
+            // 2. Search for the pattern and split the string in one highly optimized pass
+            let (_, new_name) = file_name.split_once(PATTERN)?;
+
+            // 3. Construct the new path using OS-aware Path tools
+            let parent_dir = entry.path().parent()?;
+            let new_path = parent_dir.join(new_name);
+
+            // 4. Perform the rename and handle potential OS locks or permissions errors
+            match fs::rename(entry.path(), &new_path) {
+                Ok(_) => Some(new_path),
+                Err(e) => {
+                    eprintln!("Failed to rename {:?}: {}", entry.path(), e);
+                    None
+                }
+            }
+        })
+        .for_each(|new_path| println!("Renamed to: {:?}", new_path));
+
+    Ok(())
+}
